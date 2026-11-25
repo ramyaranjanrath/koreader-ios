@@ -1,0 +1,45 @@
+name: Build Unsigned KOReader IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          brew install findutils gnu-getopt make util-linux nasm cmake pkg-config autoconf automake libtool meson ninja
+
+      - name: Generate Xcode project
+        run: |
+          export PATH="$(brew --prefix)/opt/findutils/libexec/gnubin:$(brew --prefix)/opt/gnu-getopt/bin:$(brew --prefix)/opt/make/libexec/gnubin:$(brew --prefix)/opt/util-linux/bin:${PATH}"
+          make TARGET=ios xcodeproj
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild -project KOReader.xcodeproj \
+            -scheme KOReader \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/KOReader.app Payload/
+          zip -r KOReader.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KOReader-iOS
+          path: KOReader.ipa
